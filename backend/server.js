@@ -20,6 +20,7 @@ app.use(morgan('dev')); // logs requests
 // ROUTES
 app.use('/api/products', productRoutes);
 
+// Create products table if it doesn't exist
 async function initDB() {
   try {
     await sql`
