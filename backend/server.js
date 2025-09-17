@@ -17,6 +17,44 @@ app.use(cors());
 app.use(helmet()); // helmet is security middleware that helps to protect the app by setting http headers
 app.use(morgan('dev')); // logs requests
 
+// Apply arcjet rate limit to all routes
+app.use((req, res, next) => {
+  try {
+    const decision = aj.protect(req, {
+      requested: 1, // each request consumed one token from bucket
+    });
+    if (decision.isDenied()) {
+      if (decision.reason.isRateLimit()) {
+        return res.status(429).json({
+          success: false,
+          error: 'Too many requests - try again later',
+        });
+      } else if (decision.reason.isBot()) {
+        return res
+          .status(403)
+          .json({ success: false, error: 'Access denied for bots' });
+      } else {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+    }
+
+    // Check for spoofed bots
+    if (
+      decision.results.some(
+        (result) => result.reason.isBot() && result.reason.isSpoofed()
+      )
+    ) {
+      return res
+        .status(403)
+        .json({ success: false, error: 'Access denied for spoofed bots' });
+    }
+    next();
+  } catch (error) {
+    console.error('Arcjet error:', error);
+    next(error);
+  }
+});
+
 // ROUTES
 app.use('/api/products', productRoutes);
 
